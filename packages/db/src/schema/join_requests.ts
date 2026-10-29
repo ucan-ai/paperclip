@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
 import { invites } from "./invites.js";
@@ -30,6 +31,8 @@ export const joinRequests = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    pendingRetentionIdx: index("join_requests_pending_retention_idx").on(table.updatedAt, table.id)
+      .where(sql`${table.status} = 'pending_approval'`),
     inviteUniqueIdx: uniqueIndex("join_requests_invite_unique_idx").on(table.inviteId),
     companyStatusTypeCreatedIdx: index("join_requests_company_status_type_created_idx").on(
       table.companyId,
@@ -37,5 +40,11 @@ export const joinRequests = pgTable(
       table.requestType,
       table.createdAt,
     ),
+    pendingHumanUserUniqueIdx: uniqueIndex("join_requests_pending_human_user_uq")
+      .on(table.companyId, table.requestingUserId)
+      .where(sql`${table.requestType} = 'human' AND ${table.status} = 'pending_approval' AND ${table.requestingUserId} IS NOT NULL`),
+    pendingHumanEmailUniqueIdx: uniqueIndex("join_requests_pending_human_email_uq")
+      .on(table.companyId, sql`lower(${table.requestEmailSnapshot})`)
+      .where(sql`${table.requestType} = 'human' AND ${table.status} = 'pending_approval' AND ${table.requestEmailSnapshot} IS NOT NULL`),
   }),
 );
